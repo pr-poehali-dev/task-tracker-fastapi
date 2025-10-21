@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -30,7 +30,7 @@ import { cn } from '@/lib/utils';
 
 type Priority = 'high' | 'medium' | 'low';
 type Task = {
-  id: string;
+  id: string | number;
   title: string;
   description: string;
   completed: boolean;
@@ -41,53 +41,39 @@ type Task = {
   project: string;
 };
 
+const API_URL = 'https://functions.poehali.dev/37060a48-8c02-4a5b-83a8-a95973964e04';
+
 const Index = () => {
   const [activeTab, setActiveTab] = useState('tasks');
-  const [tasks, setTasks] = useState<Task[]>([
-    {
-      id: '1',
-      title: 'Разработать API эндпоинты',
-      description: 'Создать REST API для работы с задачами',
-      completed: false,
-      priority: 'high',
-      tags: ['разработка', 'backend'],
-      category: 'Разработка',
-      project: 'Task Tracker',
-      dueDate: new Date(2025, 9, 25),
-    },
-    {
-      id: '2',
-      title: 'Дизайн компонентов',
-      description: 'Создать UI компоненты для трекера',
-      completed: true,
-      priority: 'medium',
-      tags: ['дизайн', 'frontend'],
-      category: 'Дизайн',
-      project: 'Task Tracker',
-      dueDate: new Date(2025, 9, 23),
-    },
-    {
-      id: '3',
-      title: 'Настроить базу данных',
-      description: 'Создать схему БД и миграции',
-      completed: false,
-      priority: 'high',
-      tags: ['database', 'backend'],
-      category: 'Разработка',
-      project: 'Task Tracker',
-      dueDate: new Date(2025, 9, 24),
-    },
-    {
-      id: '4',
-      title: 'Написать документацию',
-      description: 'Документировать API и компоненты',
-      completed: false,
-      priority: 'low',
-      tags: ['документация'],
-      category: 'Документация',
-      project: 'Task Tracker',
-    },
-  ]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadTasks();
+  }, []);
+
+  const loadTasks = async () => {
+    try {
+      const response = await fetch(API_URL);
+      const data = await response.json();
+      const loadedTasks = data.tasks.map((task: any) => ({
+        id: task.id,
+        title: task.title,
+        description: task.description || '',
+        completed: task.completed,
+        priority: task.priority,
+        tags: task.tags || [],
+        category: task.category || 'Без категории',
+        project: task.project || 'Без проекта',
+        dueDate: task.due_date ? new Date(task.due_date) : undefined,
+      }));
+      setTasks(loadedTasks);
+    } catch (error) {
+      console.error('Error loading tasks:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -115,8 +101,33 @@ const Index = () => {
     return matchesSearch && matchesTags && matchesCategory;
   });
 
-  const toggleTask = (id: string) => {
-    setTasks(tasks.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)));
+  const toggleTask = async (id: string | number) => {
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return;
+
+    try {
+      const response = await fetch(API_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          title: task.title,
+          description: task.description,
+          completed: !task.completed,
+          priority: task.priority,
+          tags: task.tags,
+          category: task.category,
+          project: task.project,
+          due_date: task.dueDate?.toISOString(),
+        }),
+      });
+
+      if (response.ok) {
+        setTasks(tasks.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)));
+      }
+    } catch (error) {
+      console.error('Error toggling task:', error);
+    }
   };
 
   const toggleTag = (tag: string) => {
@@ -125,29 +136,39 @@ const Index = () => {
     );
   };
 
-  const addTask = () => {
+  const addTask = async () => {
     if (!newTask.title) return;
-    const task: Task = {
-      id: Date.now().toString(),
-      title: newTask.title,
-      description: newTask.description || '',
-      completed: false,
-      priority: newTask.priority || 'medium',
-      tags: newTask.tags || [],
-      category: newTask.category || 'Без категории',
-      project: newTask.project || 'Без проекта',
-      dueDate: newTask.dueDate,
-    };
-    setTasks([task, ...tasks]);
-    setNewTask({
-      title: '',
-      description: '',
-      priority: 'medium',
-      tags: [],
-      category: '',
-      project: '',
-    });
-    setIsDialogOpen(false);
+
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newTask.title,
+          description: newTask.description || '',
+          priority: newTask.priority || 'medium',
+          tags: newTask.tags || [],
+          category: newTask.category || 'Без категории',
+          project: newTask.project || 'Без проекта',
+          due_date: newTask.dueDate?.toISOString(),
+        }),
+      });
+
+      if (response.ok) {
+        await loadTasks();
+        setNewTask({
+          title: '',
+          description: '',
+          priority: 'medium',
+          tags: [],
+          category: '',
+          project: '',
+        });
+        setIsDialogOpen(false);
+      }
+    } catch (error) {
+      console.error('Error adding task:', error);
+    }
   };
 
   const stats = {
