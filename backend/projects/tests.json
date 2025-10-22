@@ -1,0 +1,21 @@
+{
+  "tests": [
+    {
+      "name": "Get all projects",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 200
+    },
+    {
+      "name": "Create new project",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "name": "Task Tracker",
+        "description": "Main project",
+        "color": "#3B82F6"
+      },
+      "expectedStatus": 201
+    }
+  ]
+}

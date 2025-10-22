@@ -42,14 +42,20 @@ type Task = {
 };
 
 const API_URL = 'https://functions.poehali.dev/37060a48-8c02-4a5b-83a8-a95973964e04';
+const TAGS_API_URL = 'https://functions.poehali.dev/dfe17440-9403-49d6-9658-95fa61b61278';
+const PROJECTS_API_URL = 'https://functions.poehali.dev/e9abe4b2-f4aa-4109-abf5-7f9da963ea0b';
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState('tasks');
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [dbTags, setDbTags] = useState<any[]>([]);
+  const [dbProjects, setDbProjects] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     loadTasks();
+    loadTags();
+    loadProjects();
   }, []);
 
   const loadTasks = async () => {
@@ -75,11 +81,35 @@ const Index = () => {
     }
   };
 
+  const loadTags = async () => {
+    try {
+      const response = await fetch(TAGS_API_URL);
+      const data = await response.json();
+      setDbTags(data.tags || []);
+    } catch (error) {
+      console.error('Error loading tags:', error);
+    }
+  };
+
+  const loadProjects = async () => {
+    try {
+      const response = await fetch(PROJECTS_API_URL);
+      const data = await response.json();
+      setDbProjects(data.projects || []);
+    } catch (error) {
+      console.error('Error loading projects:', error);
+    }
+  };
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [isTagDialogOpen, setIsTagDialogOpen] = useState(false);
+  const [editingTag, setEditingTag] = useState<any>(null);
+  const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState<any>(null);
   const [newTask, setNewTask] = useState<Partial<Task>>({
     title: '',
     description: '',
@@ -88,6 +118,8 @@ const Index = () => {
     category: '',
     project: '',
   });
+  const [newTag, setNewTag] = useState({ name: '', color: '#3B82F6', description: '' });
+  const [newProject, setNewProject] = useState({ name: '', description: '', color: '#3B82F6' });
 
   const allTags = Array.from(new Set(tasks.flatMap((t) => t.tags)));
   const allCategories = Array.from(new Set(tasks.map((t) => t.category)));
@@ -212,6 +244,102 @@ const Index = () => {
       }
     } catch (error) {
       console.error('Error deleting task:', error);
+    }
+  };
+
+  const addTag = async () => {
+    if (!newTag.name) return;
+    try {
+      const response = await fetch(TAGS_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newTag),
+      });
+      if (response.ok) {
+        await loadTags();
+        setNewTag({ name: '', color: '#3B82F6', description: '' });
+        setIsTagDialogOpen(false);
+      }
+    } catch (error) {
+      console.error('Error adding tag:', error);
+    }
+  };
+
+  const updateTag = async () => {
+    if (!editingTag || !editingTag.name) return;
+    try {
+      const response = await fetch(TAGS_API_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingTag),
+      });
+      if (response.ok) {
+        await loadTags();
+        setEditingTag(null);
+      }
+    } catch (error) {
+      console.error('Error updating tag:', error);
+    }
+  };
+
+  const deleteTag = async (id: number) => {
+    try {
+      const response = await fetch(`${TAGS_API_URL}?id=${id}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        await loadTags();
+      }
+    } catch (error) {
+      console.error('Error deleting tag:', error);
+    }
+  };
+
+  const addProject = async () => {
+    if (!newProject.name) return;
+    try {
+      const response = await fetch(PROJECTS_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newProject),
+      });
+      if (response.ok) {
+        await loadProjects();
+        setNewProject({ name: '', description: '', color: '#3B82F6' });
+        setIsProjectDialogOpen(false);
+      }
+    } catch (error) {
+      console.error('Error adding project:', error);
+    }
+  };
+
+  const updateProject = async () => {
+    if (!editingProject || !editingProject.name) return;
+    try {
+      const response = await fetch(PROJECTS_API_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingProject),
+      });
+      if (response.ok) {
+        await loadProjects();
+        setEditingProject(null);
+      }
+    } catch (error) {
+      console.error('Error updating project:', error);
+    }
+  };
+
+  const deleteProject = async (id: number) => {
+    try {
+      const response = await fetch(`${PROJECTS_API_URL}?id=${id}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        await loadProjects();
+      }
+    } catch (error) {
+      console.error('Error deleting project:', error);
     }
   };
 
@@ -658,22 +786,77 @@ const Index = () => {
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-slate-800">Управление тегами</h2>
-                <p className="text-slate-600">Всего тегов: {allTags.length}</p>
+                <Dialog open={isTagDialogOpen} onOpenChange={setIsTagDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
+                      <Icon name="Plus" size={18} />
+                      Новый тег
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Создать тег</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="tag-name">Название</Label>
+                        <Input
+                          id="tag-name"
+                          value={newTag.name}
+                          onChange={(e) => setNewTag({ ...newTag, name: e.target.value })}
+                          placeholder="urgent, frontend..."
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="tag-color">Цвет</Label>
+                        <Input
+                          id="tag-color"
+                          type="color"
+                          value={newTag.color}
+                          onChange={(e) => setNewTag({ ...newTag, color: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="tag-description">Описание</Label>
+                        <Textarea
+                          id="tag-description"
+                          value={newTag.description}
+                          onChange={(e) => setNewTag({ ...newTag, description: e.target.value })}
+                          placeholder="Описание тега..."
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" onClick={() => setIsTagDialogOpen(false)}>
+                        Отмена
+                      </Button>
+                      <Button onClick={addTag} className="bg-blue-600 hover:bg-blue-700">
+                        Создать
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
               
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {allTags.map((tag) => {
-                  const tagTasks = tasks.filter((t) => t.tags.includes(tag));
+                {dbTags.map((tag: any) => {
+                  const tagTasks = tasks.filter((t) => t.tags.includes(tag.name));
                   const completed = tagTasks.filter((t) => t.completed).length;
                   
                   return (
-                    <Card key={tag} className="p-5 border-2 hover:shadow-lg transition-all">
-                      <div className="flex items-start justify-between">
+                    <Card key={tag.id} className="p-5 border-2 hover:shadow-lg transition-all">
+                      <div className="flex items-start justify-between mb-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
-                            <Icon name="Tag" size={20} className="text-blue-600" />
-                            <h3 className="font-semibold text-lg text-slate-800">{tag}</h3>
+                            <div 
+                              className="w-4 h-4 rounded-full" 
+                              style={{ backgroundColor: tag.color || '#3B82F6' }}
+                            />
+                            <h3 className="font-semibold text-lg text-slate-800">{tag.name}</h3>
                           </div>
+                          {tag.description && (
+                            <p className="text-sm text-slate-500 mb-2">{tag.description}</p>
+                          )}
                           <p className="text-sm text-slate-600 mb-3">
                             {tagTasks.length} {tagTasks.length === 1 ? 'задача' : 'задач'}
                           </p>
@@ -682,34 +865,78 @@ const Index = () => {
                             <div>В работе: {tagTasks.length - completed}</div>
                           </div>
                         </div>
-                        <Badge variant="secondary" className="bg-blue-50 text-blue-700">
-                          {tagTasks.length}
-                        </Badge>
                       </div>
                       
-                      <div className="mt-4 pt-4 border-t border-slate-200">
-                        <div className="flex gap-2 text-xs">
-                          {tagTasks.slice(0, 3).map((t) => (
-                            <Badge key={t.id} variant="outline" className="text-xs">
-                              {t.title.length > 15 ? t.title.slice(0, 15) + '...' : t.title}
-                            </Badge>
-                          ))}
-                          {tagTasks.length > 3 && (
-                            <Badge variant="outline" className="text-xs">
-                              +{tagTasks.length - 3}
-                            </Badge>
-                          )}
-                        </div>
+                      <div className="flex gap-2 pt-4 border-t border-slate-200">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditingTag(tag)}
+                          className="flex-1 gap-1"
+                        >
+                          <Icon name="Edit" size={14} />
+                          Редактировать
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => deleteTag(tag.id)}
+                          className="gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Icon name="Trash2" size={14} />
+                        </Button>
                       </div>
                     </Card>
                   );
                 })}
               </div>
               
-              {allTags.length === 0 && (
+              <Dialog open={!!editingTag} onOpenChange={(open) => !open && setEditingTag(null)}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Редактировать тег</DialogTitle>
+                  </DialogHeader>
+                  {editingTag && (
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label>Название</Label>
+                        <Input
+                          value={editingTag.name}
+                          onChange={(e) => setEditingTag({ ...editingTag, name: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Цвет</Label>
+                        <Input
+                          type="color"
+                          value={editingTag.color}
+                          onChange={(e) => setEditingTag({ ...editingTag, color: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Описание</Label>
+                        <Textarea
+                          value={editingTag.description || ''}
+                          onChange={(e) => setEditingTag({ ...editingTag, description: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setEditingTag(null)}>
+                      Отмена
+                    </Button>
+                    <Button onClick={updateTag} className="bg-blue-600 hover:bg-blue-700">
+                      Сохранить
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              
+              {dbTags.length === 0 && (
                 <div className="text-center py-12">
                   <Icon name="Tags" size={48} className="mx-auto text-slate-300 mb-4" />
-                  <p className="text-slate-600">Пока нет тегов. Добавьте теги к задачам!</p>
+                  <p className="text-slate-600">Пока нет тегов. Создайте первый тег!</p>
                 </div>
               )}
             </div>
@@ -719,26 +946,81 @@ const Index = () => {
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-slate-800">Управление проектами</h2>
-                <p className="text-slate-600">Всего проектов: {allProjects.length}</p>
+                <Dialog open={isProjectDialogOpen} onOpenChange={setIsProjectDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
+                      <Icon name="Plus" size={18} />
+                      Новый проект
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Создать проект</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="project-name">Название</Label>
+                        <Input
+                          id="project-name"
+                          value={newProject.name}
+                          onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
+                          placeholder="Task Tracker, Website..."
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="project-color">Цвет</Label>
+                        <Input
+                          id="project-color"
+                          type="color"
+                          value={newProject.color}
+                          onChange={(e) => setNewProject({ ...newProject, color: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="project-description">Описание</Label>
+                        <Textarea
+                          id="project-description"
+                          value={newProject.description}
+                          onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
+                          placeholder="Описание проекта..."
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" onClick={() => setIsProjectDialogOpen(false)}>
+                        Отмена
+                      </Button>
+                      <Button onClick={addProject} className="bg-blue-600 hover:bg-blue-700">
+                        Создать
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
 
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {allProjects.map((project) => {
-                  const projectTasks = tasks.filter((t) => t.project === project);
+                {dbProjects.map((project: any) => {
+                  const projectTasks = tasks.filter((t) => t.project === project.name);
                   const completed = projectTasks.filter((t) => t.completed).length;
-                  const progress = (completed / projectTasks.length) * 100;
+                  const progress = projectTasks.length > 0 ? (completed / projectTasks.length) * 100 : 0;
                   const highPriorityTasks = projectTasks.filter(
                     (t) => t.priority === 'high' && !t.completed
                   ).length;
 
                   return (
-                    <Card key={project} className="p-6 border-2 hover:shadow-lg transition-all">
+                    <Card key={project.id} className="p-6 border-2 hover:shadow-lg transition-all">
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
-                            <Icon name="Folder" size={20} className="text-blue-600" />
-                            <h3 className="font-semibold text-lg text-slate-800">{project}</h3>
+                            <div 
+                              className="w-4 h-4 rounded" 
+                              style={{ backgroundColor: project.color || '#3B82F6' }}
+                            />
+                            <h3 className="font-semibold text-lg text-slate-800">{project.name}</h3>
                           </div>
+                          {project.description && (
+                            <p className="text-sm text-slate-500 mb-2">{project.description}</p>
+                          )}
                           <p className="text-sm text-slate-600">
                             {projectTasks.length} {projectTasks.length === 1 ? 'задача' : 'задач'}
                           </p>
@@ -750,54 +1032,93 @@ const Index = () => {
                         )}
                       </div>
                       
-                      <div className="space-y-2 mb-4">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-600">Прогресс</span>
-                          <span className="font-semibold text-slate-800">
-                            {completed}/{projectTasks.length}
-                          </span>
-                        </div>
-                        <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-blue-600 transition-all"
-                            style={{ width: `${progress}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="pt-4 border-t border-slate-200">
-                        <div className="space-y-1 text-xs">
-                          <div className="flex justify-between">
-                            <span className="text-slate-500">Завершено:</span>
-                            <span className="font-medium text-green-600">{completed}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-500">В работе:</span>
-                            <span className="font-medium text-blue-600">
-                              {projectTasks.length - completed}
+                      {projectTasks.length > 0 && (
+                        <div className="space-y-2 mb-4">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-slate-600">Прогресс</span>
+                            <span className="font-semibold text-slate-800">
+                              {completed}/{projectTasks.length}
                             </span>
                           </div>
+                          <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-blue-600 transition-all"
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
                         </div>
-                      </div>
+                      )}
 
-                      <div className="mt-3 flex flex-wrap gap-1">
-                        {Array.from(new Set(projectTasks.flatMap((t) => t.tags)))
-                          .slice(0, 3)
-                          .map((tag) => (
-                            <Badge key={tag} variant="outline" className="text-xs">
-                              {tag}
-                            </Badge>
-                          ))}
+                      <div className="flex gap-2 pt-4 border-t border-slate-200">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditingProject(project)}
+                          className="flex-1 gap-1"
+                        >
+                          <Icon name="Edit" size={14} />
+                          Редактировать
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => deleteProject(project.id)}
+                          className="gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Icon name="Trash2" size={14} />
+                        </Button>
                       </div>
                     </Card>
                   );
                 })}
               </div>
 
-              {allProjects.length === 0 && (
+              <Dialog open={!!editingProject} onOpenChange={(open) => !open && setEditingProject(null)}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Редактировать проект</DialogTitle>
+                  </DialogHeader>
+                  {editingProject && (
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label>Название</Label>
+                        <Input
+                          value={editingProject.name}
+                          onChange={(e) => setEditingProject({ ...editingProject, name: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Цвет</Label>
+                        <Input
+                          type="color"
+                          value={editingProject.color}
+                          onChange={(e) => setEditingProject({ ...editingProject, color: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Описание</Label>
+                        <Textarea
+                          value={editingProject.description || ''}
+                          onChange={(e) => setEditingProject({ ...editingProject, description: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setEditingProject(null)}>
+                      Отмена
+                    </Button>
+                    <Button onClick={updateProject} className="bg-blue-600 hover:bg-blue-700">
+                      Сохранить
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              {dbProjects.length === 0 && (
                 <div className="text-center py-12">
                   <Icon name="Folder" size={48} className="mx-auto text-slate-300 mb-4" />
-                  <p className="text-slate-600">Пока нет проектов. Создайте первую задачу!</p>
+                  <p className="text-slate-600">Пока нет проектов. Создайте первый проект!</p>
                 </div>
               )}
             </div>
