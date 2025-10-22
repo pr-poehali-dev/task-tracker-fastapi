@@ -79,6 +79,7 @@ const Index = () => {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [newTask, setNewTask] = useState<Partial<Task>>({
     title: '',
     description: '',
@@ -171,6 +172,49 @@ const Index = () => {
     }
   };
 
+  const updateTask = async () => {
+    if (!editingTask || !editingTask.title) return;
+
+    try {
+      const response = await fetch(API_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingTask.id,
+          title: editingTask.title,
+          description: editingTask.description,
+          completed: editingTask.completed,
+          priority: editingTask.priority,
+          tags: editingTask.tags,
+          category: editingTask.category,
+          project: editingTask.project,
+          due_date: editingTask.dueDate?.toISOString(),
+        }),
+      });
+
+      if (response.ok) {
+        await loadTasks();
+        setEditingTask(null);
+      }
+    } catch (error) {
+      console.error('Error updating task:', error);
+    }
+  };
+
+  const deleteTask = async (id: string | number) => {
+    try {
+      const response = await fetch(`${API_URL}?id=${id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        await loadTasks();
+      }
+    } catch (error) {
+      console.error('Error deleting task:', error);
+    }
+  };
+
   const stats = {
     total: tasks.length,
     completed: tasks.filter((t) => t.completed).length,
@@ -203,6 +247,10 @@ const Index = () => {
             <TabsTrigger value="tasks" className="gap-2">
               <Icon name="CheckSquare" size={18} />
               Задачи
+            </TabsTrigger>
+            <TabsTrigger value="tags" className="gap-2">
+              <Icon name="Tags" size={18} />
+              Теги
             </TabsTrigger>
             <TabsTrigger value="projects" className="gap-2">
               <Icon name="Folder" size={18} />
@@ -377,6 +425,122 @@ const Index = () => {
                   </div>
                 </DialogContent>
               </Dialog>
+
+              <Dialog open={!!editingTask} onOpenChange={(open) => !open && setEditingTask(null)}>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Редактировать задачу</DialogTitle>
+                  </DialogHeader>
+                  {editingTask && (
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-title">Название</Label>
+                        <Input
+                          id="edit-title"
+                          value={editingTask.title}
+                          onChange={(e) => setEditingTask({ ...editingTask, title: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-description">Описание</Label>
+                        <Textarea
+                          id="edit-description"
+                          value={editingTask.description}
+                          onChange={(e) =>
+                            setEditingTask({ ...editingTask, description: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Приоритет</Label>
+                          <Select
+                            value={editingTask.priority}
+                            onValueChange={(value: Priority) =>
+                              setEditingTask({ ...editingTask, priority: value })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="high">Высокий</SelectItem>
+                              <SelectItem value="medium">Средний</SelectItem>
+                              <SelectItem value="low">Низкий</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Срок</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  'w-full justify-start text-left font-normal',
+                                  !editingTask.dueDate && 'text-muted-foreground'
+                                )}
+                              >
+                                <Icon name="CalendarIcon" size={16} className="mr-2" />
+                                {editingTask.dueDate ? (
+                                  format(editingTask.dueDate, 'PPP', { locale: ru })
+                                ) : (
+                                  <span>Выберите дату</span>
+                                )}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar
+                                mode="single"
+                                selected={editingTask.dueDate}
+                                onSelect={(date) => setEditingTask({ ...editingTask, dueDate: date })}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-category">Категория</Label>
+                        <Input
+                          id="edit-category"
+                          value={editingTask.category}
+                          onChange={(e) => setEditingTask({ ...editingTask, category: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-project">Проект</Label>
+                        <Input
+                          id="edit-project"
+                          value={editingTask.project}
+                          onChange={(e) => setEditingTask({ ...editingTask, project: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-tags">Теги (через запятую)</Label>
+                        <Input
+                          id="edit-tags"
+                          value={editingTask.tags.join(', ')}
+                          onChange={(e) =>
+                            setEditingTask({
+                              ...editingTask,
+                              tags: e.target.value.split(',').map((t) => t.trim()).filter(t => t),
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setEditingTask(null)}>
+                      Отмена
+                    </Button>
+                    <Button onClick={updateTask} className="bg-blue-600 hover:bg-blue-700">
+                      Сохранить
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
 
             <div className="flex gap-2 flex-wrap">
@@ -466,49 +630,176 @@ const Index = () => {
                         ))}
                       </div>
                     </div>
+                    <div className="flex gap-2 ml-auto">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEditingTask(task)}
+                        className="gap-1"
+                      >
+                        <Icon name="Edit" size={14} />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => deleteTask(task.id)}
+                        className="gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Icon name="Trash2" size={14} />
+                      </Button>
+                    </div>
                   </div>
                 </Card>
               ))}
             </div>
           </TabsContent>
 
-          <TabsContent value="projects" className="animate-fade-in">
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {allProjects.map((project) => {
-                const projectTasks = tasks.filter((t) => t.project === project);
-                const completed = projectTasks.filter((t) => t.completed).length;
-                const progress = (completed / projectTasks.length) * 100;
+          <TabsContent value="tags" className="animate-fade-in">
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-slate-800">Управление тегами</h2>
+                <p className="text-slate-600">Всего тегов: {allTags.length}</p>
+              </div>
+              
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {allTags.map((tag) => {
+                  const tagTasks = tasks.filter((t) => t.tags.includes(tag));
+                  const completed = tagTasks.filter((t) => t.completed).length;
+                  
+                  return (
+                    <Card key={tag} className="p-5 border-2 hover:shadow-lg transition-all">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Icon name="Tag" size={20} className="text-blue-600" />
+                            <h3 className="font-semibold text-lg text-slate-800">{tag}</h3>
+                          </div>
+                          <p className="text-sm text-slate-600 mb-3">
+                            {tagTasks.length} {tagTasks.length === 1 ? 'задача' : 'задач'}
+                          </p>
+                          <div className="space-y-1 text-xs text-slate-500">
+                            <div>Завершено: {completed}</div>
+                            <div>В работе: {tagTasks.length - completed}</div>
+                          </div>
+                        </div>
+                        <Badge variant="secondary" className="bg-blue-50 text-blue-700">
+                          {tagTasks.length}
+                        </Badge>
+                      </div>
+                      
+                      <div className="mt-4 pt-4 border-t border-slate-200">
+                        <div className="flex gap-2 text-xs">
+                          {tagTasks.slice(0, 3).map((t) => (
+                            <Badge key={t.id} variant="outline" className="text-xs">
+                              {t.title.length > 15 ? t.title.slice(0, 15) + '...' : t.title}
+                            </Badge>
+                          ))}
+                          {tagTasks.length > 3 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{tagTasks.length - 3}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+              
+              {allTags.length === 0 && (
+                <div className="text-center py-12">
+                  <Icon name="Tags" size={48} className="mx-auto text-slate-300 mb-4" />
+                  <p className="text-slate-600">Пока нет тегов. Добавьте теги к задачам!</p>
+                </div>
+              )}
+            </div>
+          </TabsContent>
 
-                return (
-                  <Card key={project} className="p-6 border-2 hover:shadow-lg transition-all">
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h3 className="font-semibold text-lg text-slate-800">{project}</h3>
-                        <p className="text-sm text-slate-600 mt-1">
-                          {projectTasks.length} задач
-                        </p>
+          <TabsContent value="projects" className="animate-fade-in">
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-slate-800">Управление проектами</h2>
+                <p className="text-slate-600">Всего проектов: {allProjects.length}</p>
+              </div>
+
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {allProjects.map((project) => {
+                  const projectTasks = tasks.filter((t) => t.project === project);
+                  const completed = projectTasks.filter((t) => t.completed).length;
+                  const progress = (completed / projectTasks.length) * 100;
+                  const highPriorityTasks = projectTasks.filter(
+                    (t) => t.priority === 'high' && !t.completed
+                  ).length;
+
+                  return (
+                    <Card key={project} className="p-6 border-2 hover:shadow-lg transition-all">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Icon name="Folder" size={20} className="text-blue-600" />
+                            <h3 className="font-semibold text-lg text-slate-800">{project}</h3>
+                          </div>
+                          <p className="text-sm text-slate-600">
+                            {projectTasks.length} {projectTasks.length === 1 ? 'задача' : 'задач'}
+                          </p>
+                        </div>
+                        {highPriorityTasks > 0 && (
+                          <Badge variant="destructive" className="bg-red-100 text-red-700">
+                            {highPriorityTasks} срочных
+                          </Badge>
+                        )}
                       </div>
-                      <div className="bg-blue-100 p-3 rounded-xl">
-                        <Icon name="Folder" size={24} className="text-blue-600" />
+                      
+                      <div className="space-y-2 mb-4">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-600">Прогресс</span>
+                          <span className="font-semibold text-slate-800">
+                            {completed}/{projectTasks.length}
+                          </span>
+                        </div>
+                        <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-blue-600 transition-all"
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
                       </div>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Прогресс</span>
-                        <span className="font-semibold text-slate-800">
-                          {completed}/{projectTasks.length}
-                        </span>
+
+                      <div className="pt-4 border-t border-slate-200">
+                        <div className="space-y-1 text-xs">
+                          <div className="flex justify-between">
+                            <span className="text-slate-500">Завершено:</span>
+                            <span className="font-medium text-green-600">{completed}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-500">В работе:</span>
+                            <span className="font-medium text-blue-600">
+                              {projectTasks.length - completed}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-blue-600 transition-all"
-                          style={{ width: `${progress}%` }}
-                        />
+
+                      <div className="mt-3 flex flex-wrap gap-1">
+                        {Array.from(new Set(projectTasks.flatMap((t) => t.tags)))
+                          .slice(0, 3)
+                          .map((tag) => (
+                            <Badge key={tag} variant="outline" className="text-xs">
+                              {tag}
+                            </Badge>
+                          ))}
                       </div>
-                    </div>
-                  </Card>
-                );
-              })}
+                    </Card>
+                  );
+                })}
+              </div>
+
+              {allProjects.length === 0 && (
+                <div className="text-center py-12">
+                  <Icon name="Folder" size={48} className="mx-auto text-slate-300 mb-4" />
+                  <p className="text-slate-600">Пока нет проектов. Создайте первую задачу!</p>
+                </div>
+              )}
             </div>
           </TabsContent>
 

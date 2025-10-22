@@ -19,6 +19,12 @@
         "project": "Test Project"
       },
       "expectedStatus": 201
+    },
+    {
+      "name": "Delete task",
+      "method": "DELETE",
+      "path": "/?id=999999",
+      "expectedStatus": 404
     }
   ]
 }
